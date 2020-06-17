@@ -10,10 +10,6 @@ abstract class InfiniteListView<T> extends StatefulWidget {
 
   Future<List<T>> getListData(int pageNumber);
 
-  int getPerPageCount() => 10;
-
-  int getNextPageThreshold() => 5;
-
   Widget getLoadingWidget() {
     return Center(child: CircularProgressIndicator());
   }
@@ -52,8 +48,7 @@ class _InfiniteListViewState<T> extends State<InfiniteListView> {
   bool _loading;
   int _pageNumber;
   List<T> _listData;
-  int _perPageCount;
-  int _nextPageThreshold;
+  final int _nextPageThreshold = 5;
   dynamic _encounteredError;
 
   @override
@@ -64,8 +59,6 @@ class _InfiniteListViewState<T> extends State<InfiniteListView> {
     _loading = true;
     _pageNumber = 1;
     _listData = [];
-    _perPageCount = widget.getPerPageCount();
-    _nextPageThreshold = widget.getNextPageThreshold();
     fetchPhotos();
   }
 
@@ -114,10 +107,13 @@ class _InfiniteListViewState<T> extends State<InfiniteListView> {
   Future<void> fetchPhotos() async {
     widget.getListData(_pageNumber).then((value) {
       setState(() {
-        _hasMore = value.length == _perPageCount;
         _loading = false;
-        _pageNumber = _pageNumber + 1;
-        _listData.addAll(value as List<T>);
+        if (value.isEmpty) {
+          _hasMore = false;
+        } else {
+          _pageNumber = _pageNumber + 1;
+          _listData.addAll(value as List<T>);
+        }
       });
     }).catchError((error) {
       setState(() {
