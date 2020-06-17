@@ -1,6 +1,6 @@
 name: infinite_listview_package
-description: Infinite scroll listview widget in Flutter.
-version: 1.0.0
+description: Flutter package that provides Infinite scroll listview widget.
+version: 1.0.2
 homepage: https://github.com/sharmadhiraj/infinite_listview_package
 
 environment:

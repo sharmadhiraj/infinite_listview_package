@@ -1,3 +1,3 @@
-## 1.0.0
+## 1.0.2
 
-* Implement Drawable & Mipmap widget
+* Implement Infinite ListView Widget
