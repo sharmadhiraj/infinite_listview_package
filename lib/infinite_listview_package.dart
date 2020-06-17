@@ -1,0 +1,130 @@
+library infinite_listview_package;
+
+import 'package:flutter/material.dart';
+
+abstract class InfiniteListView<T> extends StatefulWidget {
+  @override
+  _InfiniteListViewState createState() => _InfiniteListViewState<T>();
+
+  Widget getItemWidget(T item);
+
+  Future<List<T>> getListData(int pageNumber);
+
+  int getPerPageCount() => 10;
+
+  int getNextPageThreshold() => 5;
+
+  Widget getLoadingWidget() {
+    return Center(child: CircularProgressIndicator());
+  }
+
+  Widget getPaginationLoadingWidget() {
+    return Center(
+        child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: CircularProgressIndicator(),
+    ));
+  }
+
+  Widget getErrorWidget(dynamic error) {
+    return Center(
+        child: Padding(
+      padding: const EdgeInsets.all(24),
+      child: Text(
+        "Something went wrong! Tap to try again.",
+        style: TextStyle(fontSize: 16),
+      ),
+    ));
+  }
+
+  Widget getPaginationErrorWidget(dynamic error) {
+    return Center(
+        child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Text("Something went wrong! Tap to try again."),
+    ));
+  }
+}
+
+class _InfiniteListViewState<T> extends State<InfiniteListView> {
+  bool _hasMore;
+  bool _error;
+  bool _loading;
+  int _pageNumber;
+  List<T> _listData;
+  int _perPageCount;
+  int _nextPageThreshold;
+  dynamic _encounteredError;
+
+  @override
+  void initState() {
+    super.initState();
+    _hasMore = true;
+    _error = false;
+    _loading = true;
+    _pageNumber = 1;
+    _listData = [];
+    _perPageCount = widget.getPerPageCount();
+    _nextPageThreshold = widget.getNextPageThreshold();
+    fetchPhotos();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_listData.isEmpty) {
+      if (_loading) {
+        return widget.getLoadingWidget();
+      } else if (_error) {
+        return InkWell(
+          onTap: () => retry(),
+          child: widget.getErrorWidget(_encounteredError),
+        );
+      }
+    } else {
+      return ListView.builder(
+          itemCount: _listData.length + (_hasMore ? 1 : 0),
+          itemBuilder: (context, index) {
+            if (index == _listData.length - _nextPageThreshold) {
+              fetchPhotos();
+            }
+            if (index == _listData.length) {
+              if (_error) {
+                return InkWell(
+                  onTap: () => retry(),
+                  child: widget.getPaginationErrorWidget(_encounteredError),
+                );
+              } else {
+                return widget.getPaginationLoadingWidget();
+              }
+            }
+            return widget.getItemWidget(_listData[index]);
+          });
+    }
+    return Container();
+  }
+
+  void retry() {
+    setState(() {
+      _loading = true;
+      _error = false;
+      fetchPhotos();
+    });
+  }
+
+  Future<void> fetchPhotos() async {
+    widget.getListData(_pageNumber).then((value) {
+      setState(() {
+        _hasMore = value.length == _perPageCount;
+        _loading = false;
+        _pageNumber = _pageNumber + 1;
+        _listData.addAll(value as List<T>);
+      });
+    }).catchError((error) {
+      setState(() {
+        _encounteredError = error;
+        _loading = false;
+        _error = true;
+      });
+    });
+  }
+}
