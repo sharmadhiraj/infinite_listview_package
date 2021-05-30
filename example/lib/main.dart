@@ -4,9 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:infinite_listview_package/infinite_listview_package.dart';
 
-void main() {
-  runApp(MyApp());
-}
+void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
   @override
@@ -35,15 +33,20 @@ class InfiniteListViewWidget extends InfiniteListView<Photo> {
       child: Column(
         children: <Widget>[
           Image.network(
-            item.thumbnailUrl,
+            item.thumbnailUrl!,
             fit: BoxFit.fitWidth,
             width: double.infinity,
             height: 160,
           ),
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Text(item.title,
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            child: Text(
+              item.title!,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
           ),
         ],
       ),
@@ -51,9 +54,9 @@ class InfiniteListViewWidget extends InfiniteListView<Photo> {
   }
 
   @override
-  Future<List<Photo>> getListData(int pageNumber) async {
-    final response = await http
-        .get("https://jsonplaceholder.typicode.com/photos?_page=$pageNumber");
+  Future<List<Photo>> getListData(int? pageNumber) async {
+    final response = await http.get(Uri.parse(
+        "https://jsonplaceholder.typicode.com/photos?_page=$pageNumber"));
     if (response.statusCode == 200)
       return Photo.parseList(json.decode(response.body));
     else
@@ -62,10 +65,13 @@ class InfiniteListViewWidget extends InfiniteListView<Photo> {
 }
 
 class Photo {
-  final String title;
-  final String thumbnailUrl;
+  final String? title;
+  final String? thumbnailUrl;
 
-  Photo(this.title, this.thumbnailUrl);
+  Photo(
+    this.title,
+    this.thumbnailUrl,
+  );
 
   factory Photo.fromJson(Map<String, dynamic> json) {
     return Photo(json["title"], json["thumbnailUrl"]);
