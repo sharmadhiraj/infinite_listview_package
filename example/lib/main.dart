@@ -7,6 +7,8 @@ import 'package:infinite_listview_package/infinite_listview_package.dart';
 void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
+  const MyApp({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -17,6 +19,8 @@ class MyApp extends StatelessWidget {
 }
 
 class InfiniteListViewExample extends StatelessWidget {
+  const InfiniteListViewExample({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -26,58 +30,58 @@ class InfiniteListViewExample extends StatelessWidget {
   }
 }
 
-class InfiniteListViewWidget extends InfiniteListView<Photo> {
+class InfiniteListViewWidget extends InfiniteListView<Post> {
+  const InfiniteListViewWidget({Key? key}) : super(key: key);
+
   @override
-  Widget getItemWidget(Photo item) {
+  Widget getItemWidget(Post item) {
     return Card(
-      child: Column(
-        children: <Widget>[
-          Image.network(
-            item.thumbnailUrl!,
-            fit: BoxFit.fitWidth,
-            width: double.infinity,
-            height: 160,
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              item.title!,
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              item.title,
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
             ),
-          ),
-        ],
+            Text(item.body),
+          ],
+        ),
       ),
     );
   }
 
   @override
-  Future<List<Photo>> getListData(int? pageNumber) async {
-    final response = await http.get(Uri.parse(
-        "https://jsonplaceholder.typicode.com/photos?_page=$pageNumber"));
-    if (response.statusCode == 200)
-      return Photo.parseList(json.decode(response.body));
-    else
+  Future<List<Post>> getListData(int? pageNumber) async {
+    final String url =
+        "https://dummyjson.com/posts?skip=${(pageNumber ?? 1 - 1) * 30}";
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      return Post.parseList(json.decode(response.body)["posts"]);
+    } else {
       return Future.error("Something went wrong.");
+    }
   }
 }
 
-class Photo {
-  final String? title;
-  final String? thumbnailUrl;
+class Post {
+  final String title;
+  final String body;
 
-  Photo(
-    this.title,
-    this.thumbnailUrl,
-  );
+  const Post(this.title, this.body);
 
-  factory Photo.fromJson(Map<String, dynamic> json) {
-    return Photo(json["title"], json["thumbnailUrl"]);
+  factory Post.fromJson(Map<String, dynamic> json) {
+    return Post(
+      json["title"],
+      json["body"],
+    );
   }
 
-  static List<Photo> parseList(List<dynamic> list) {
-    return list.map((i) => Photo.fromJson(i)).toList();
+  static List<Post> parseList(List<dynamic> list) {
+    return list.map((i) => Post.fromJson(i)).toList();
   }
 }

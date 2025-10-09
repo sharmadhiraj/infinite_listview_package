@@ -5,8 +5,10 @@ import 'package:flutter/material.dart';
 
 /// An abstract class for creating infinite scroll listview widgets.
 abstract class InfiniteListView<T> extends StatefulWidget {
+  const InfiniteListView({Key? key}) : super(key: key);
+
   @override
-  _InfiniteListViewState createState() => _InfiniteListViewState<T>();
+  State<InfiniteListView<T>> createState() => _InfiniteListViewState<T>();
 
   /// Returns a widget representing a single item in the list.
   Widget getItemWidget(T item);
@@ -51,7 +53,7 @@ abstract class InfiniteListView<T> extends StatefulWidget {
   }
 }
 
-class _InfiniteListViewState<T> extends State<InfiniteListView> {
+class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
   late bool _hasMore;
   late bool _error;
   late bool _loading;
@@ -84,13 +86,15 @@ class _InfiniteListViewState<T> extends State<InfiniteListView> {
       }
     } else {
       return ListView.builder(
-          itemCount: _listData.length + (_hasMore ? 1 : 0),
+          itemCount: _listData.length + 1,
           itemBuilder: (context, index) {
             if (index == _listData.length - _nextPageThreshold) {
               fetchPhotos();
             }
             if (index == _listData.length) {
-              if (_error) {
+              if (!_hasMore) {
+                return SizedBox.shrink();
+              } else if (_error) {
                 return InkWell(
                   onTap: () => retry(),
                   child: widget.getPaginationErrorWidget(_encounteredError),
@@ -99,7 +103,7 @@ class _InfiniteListViewState<T> extends State<InfiniteListView> {
                 return widget.getPaginationLoadingWidget();
               }
             }
-            return widget.getItemWidget(_listData[index]);
+            return widget.getItemWidget(_listData[index] as T);
           });
     }
     return Container();
@@ -114,6 +118,7 @@ class _InfiniteListViewState<T> extends State<InfiniteListView> {
   }
 
   Future<void> fetchPhotos() async {
+    if (!_hasMore) return;
     widget.getListData(_pageNumber).then((value) {
       setState(() {
         _loading = false;
