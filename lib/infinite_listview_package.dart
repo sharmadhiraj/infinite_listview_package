@@ -10,10 +10,41 @@ import 'package:flutter/material.dart';
 ///
 /// Type parameter [T] represents the data model for each list item.
 abstract class InfiniteListView<T> extends StatefulWidget {
-  const InfiniteListView({Key? key, this.scrollController}) : super(key: key);
+  const InfiniteListView({
+    Key? key,
+    this.scrollController,
+    this.padding,
+    this.physics,
+    this.shrinkWrap = false,
+    this.nextPageThreshold = 5,
+    this.headerWidget,
+    this.onAllItemsLoaded,
+    this.onError,
+  }) : super(key: key);
 
   /// Optional controller for programmatic scrolling (e.g. scroll-to-top).
   final ScrollController? scrollController;
+
+  /// Optional padding around the list content.
+  final EdgeInsetsGeometry? padding;
+
+  /// Optional scroll physics (e.g. NeverScrollableScrollPhysics for nested scrolling).
+  final ScrollPhysics? physics;
+
+  /// Whether the list should shrink-wrap its contents. Defaults to false.
+  final bool shrinkWrap;
+
+  /// How many items from the end triggers the next page fetch. Defaults to 5.
+  final int nextPageThreshold;
+
+  /// Optional widget rendered above the first list item, scrolling with the list.
+  final Widget? headerWidget;
+
+  /// Called once when the last page is reached and there are no more items.
+  final VoidCallback? onAllItemsLoaded;
+
+  /// Called whenever a fetch or refresh fails, with the error as argument.
+  final void Function(dynamic error)? onError;
 
   @override
   State<InfiniteListView<T>> createState() => _InfiniteListViewState<T>();
@@ -84,9 +115,6 @@ abstract class InfiniteListView<T> extends StatefulWidget {
 }
 
 class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
-  /// Number of items from the end at which the next page fetch is triggered.
-  static const int _nextPageThreshold = 5;
-
   int? _pageNumber = 1;
   final List<T?> _listData = [];
   bool _hasMore = true;
@@ -122,25 +150,40 @@ class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
 
   /// Builds the paginated list with inline pagination loading/error at the bottom.
   Widget _buildList() {
+    final hasHeader = widget.headerWidget != null;
+    final offset = hasHeader ? 1 : 0;
+
     Widget itemBuilder(BuildContext context, int index) {
-      if (index == _listData.length - _nextPageThreshold) {
+      if (hasHeader && index == 0) return widget.headerWidget!;
+      final dataIndex = index - offset;
+      if (dataIndex == _listData.length - widget.nextPageThreshold) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _fetchData());
       }
-      if (index == _listData.length) return _buildPaginationFooter();
-      return widget.getItemWidget(_listData[index] as T);
+      if (dataIndex == _listData.length) return _buildPaginationFooter();
+      return widget.getItemWidget(_listData[dataIndex] as T);
     }
 
     final separator = widget.getSeparatorWidget();
+    final itemCount = _listData.length + 1 + offset;
     final list = separator == null
         ? ListView.builder(
             controller: widget.scrollController,
-            itemCount: _listData.length + 1,
+            padding: widget.padding,
+            physics: widget.physics,
+            shrinkWrap: widget.shrinkWrap,
+            itemCount: itemCount,
             itemBuilder: itemBuilder,
           )
         : ListView.separated(
             controller: widget.scrollController,
-            itemCount: _listData.length + 1,
-            separatorBuilder: (_, __) => separator,
+            padding: widget.padding,
+            physics: widget.physics,
+            shrinkWrap: widget.shrinkWrap,
+            itemCount: itemCount,
+            separatorBuilder: (_, index) {
+              if (hasHeader && index == 0) return const SizedBox.shrink();
+              return separator;
+            },
             itemBuilder: itemBuilder,
           );
 
@@ -177,6 +220,7 @@ class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
         _isLoading = false;
       });
     } catch (error) {
+      widget.onError?.call(error);
       setState(() {
         _encounteredError = error;
         _hasError = true;
@@ -202,12 +246,14 @@ class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
         _isLoading = false;
         if (results.isEmpty) {
           _hasMore = false;
+          widget.onAllItemsLoaded?.call();
         } else {
           _pageNumber = _pageNumber! + 1;
           _listData.addAll(results as List<T?>);
         }
       });
     } catch (error) {
+      widget.onError?.call(error);
       setState(() {
         _encounteredError = error;
         _isLoading = false;
