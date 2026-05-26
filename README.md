@@ -129,4 +129,4 @@ UserList(
 
 ---
 
-Feedback and issues welcome on [GitHub](https://github.com).
+Feedback and issues welcome on [GitHub](https://github.com/sharmadhiraj/infinite_listview_package/).
