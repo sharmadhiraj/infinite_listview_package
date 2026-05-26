@@ -157,7 +157,9 @@ class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
       if (hasHeader && index == 0) return widget.headerWidget!;
       final dataIndex = index - offset;
       final targetIndex = _listData.length - widget.nextPageThreshold;
-      if (dataIndex == targetIndex || (targetIndex < 0 && dataIndex == 0)) {
+      if (_hasMore &&
+          !_hasError &&
+          (dataIndex == targetIndex || (targetIndex < 0 && dataIndex == 0))) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _fetchData());
       }
       if (dataIndex == _listData.length) return _buildPaginationFooter();
