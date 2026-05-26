@@ -10,7 +10,10 @@ import 'package:flutter/material.dart';
 ///
 /// Type parameter [T] represents the data model for each list item.
 abstract class InfiniteListView<T> extends StatefulWidget {
-  const InfiniteListView({Key? key}) : super(key: key);
+  const InfiniteListView({Key? key, this.scrollController}) : super(key: key);
+
+  /// Optional controller for programmatic scrolling (e.g. scroll-to-top).
+  final ScrollController? scrollController;
 
   @override
   State<InfiniteListView<T>> createState() => _InfiniteListViewState<T>();
@@ -49,6 +52,25 @@ abstract class InfiniteListView<T> extends StatefulWidget {
     );
   }
 
+  /// Widget shown when the initial data load succeeds but returns an empty list.
+  Widget getEmptyStateWidget() {
+    return const Center(
+      child: Padding(
+        padding: EdgeInsets.all(24),
+        child: Text(
+          "No items found.",
+          style: TextStyle(fontSize: 16),
+        ),
+      ),
+    );
+  }
+
+  /// Return a widget to show between list items. Null shows no separator.
+  Widget? getSeparatorWidget() => null;
+
+  /// Return false to disable pull-to-refresh. Defaults to true.
+  bool enablePullToRefresh() => true;
+
   /// Widget shown at the bottom of the list when pagination fails.
   /// Wrap with [InkWell] is handled internally — tap triggers a retry.
   Widget getPaginationErrorWidget(dynamic error) {
@@ -68,7 +90,7 @@ class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
   int? _pageNumber = 1;
   final List<T?> _listData = [];
   bool _hasMore = true;
-  bool _isLoading = true;
+  bool _isLoading = false;
   bool _hasError = false;
   dynamic _encounteredError;
 
@@ -95,26 +117,35 @@ class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
         child: widget.getErrorWidget(_encounteredError),
       );
     }
-    return const SizedBox.shrink();
+    return widget.getEmptyStateWidget();
   }
 
   /// Builds the paginated list with inline pagination loading/error at the bottom.
   Widget _buildList() {
-    return ListView.builder(
-      itemCount: _listData.length + 1,
-      itemBuilder: (context, index) {
-        if (index == _listData.length - _nextPageThreshold) {
-          _fetchData();
-        }
+    Widget itemBuilder(BuildContext context, int index) {
+      if (index == _listData.length - _nextPageThreshold) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _fetchData());
+      }
+      if (index == _listData.length) return _buildPaginationFooter();
+      return widget.getItemWidget(_listData[index] as T);
+    }
 
-        // Last slot — pagination indicator or end-of-list
-        if (index == _listData.length) {
-          return _buildPaginationFooter();
-        }
+    final separator = widget.getSeparatorWidget();
+    final list = separator == null
+        ? ListView.builder(
+            controller: widget.scrollController,
+            itemCount: _listData.length + 1,
+            itemBuilder: itemBuilder,
+          )
+        : ListView.separated(
+            controller: widget.scrollController,
+            itemCount: _listData.length + 1,
+            separatorBuilder: (_, __) => separator,
+            itemBuilder: itemBuilder,
+          );
 
-        return widget.getItemWidget(_listData[index] as T);
-      },
-    );
+    if (!widget.enablePullToRefresh()) return list;
+    return RefreshIndicator(onRefresh: _refresh, child: list);
   }
 
   /// Builds the footer widget shown after the last item.
@@ -129,12 +160,34 @@ class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
     return widget.getPaginationLoadingWidget();
   }
 
+  /// Resets all state and reloads from page 1.
+  Future<void> _refresh() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    try {
+      final results = await widget.getListData(1);
+      setState(() {
+        _listData
+          ..clear()
+          ..addAll(results as List<T?>);
+        _pageNumber = results.isEmpty ? 1 : 2;
+        _hasMore = results.isNotEmpty;
+        _hasError = false;
+        _encounteredError = null;
+        _isLoading = false;
+      });
+    } catch (error) {
+      setState(() {
+        _encounteredError = error;
+        _hasError = true;
+        _isLoading = false;
+      });
+    }
+  }
+
   /// Resets error state and retries the last failed fetch.
   void _retry() {
-    setState(() {
-      _isLoading = true;
-      _hasError = false;
-    });
+    setState(() => _hasError = false);
     _fetchData();
   }
 
@@ -142,7 +195,7 @@ class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
   /// No-op if there are no more pages or a fetch is already in progress.
   Future<void> _fetchData() async {
     if (!_hasMore || _isLoading) return;
-
+    setState(() => _isLoading = true);
     try {
       final results = await widget.getListData(_pageNumber);
       setState(() {

@@ -46,6 +46,7 @@ class InfiniteListViewWidget extends InfiniteListView<Post> {
   Future<List<Post>> getListData(int? pageNumber) async {
     final String url =
         "https://dummyjson.com/posts?skip=${(pageNumber ?? 1 - 1) * 30}";
+    debugPrint("Fetching url: $url");
     final response = await http.get(Uri.parse(url));
     if (response.statusCode == 200) {
       return Post.parseList(json.decode(response.body)["posts"]);
