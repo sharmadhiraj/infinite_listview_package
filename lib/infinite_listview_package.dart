@@ -116,7 +116,7 @@ abstract class InfiniteListView<T> extends StatefulWidget {
 
 class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
   int? _pageNumber = 1;
-  final List<T?> _listData = [];
+  final List<T> _listData = [];
   bool _hasMore = true;
   bool _isLoading = false;
   bool _hasError = false;
@@ -156,11 +156,12 @@ class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
     Widget itemBuilder(BuildContext context, int index) {
       if (hasHeader && index == 0) return widget.headerWidget!;
       final dataIndex = index - offset;
-      if (dataIndex == _listData.length - widget.nextPageThreshold) {
+      final targetIndex = _listData.length - widget.nextPageThreshold;
+      if (dataIndex == targetIndex || (targetIndex < 0 && dataIndex == 0)) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _fetchData());
       }
       if (dataIndex == _listData.length) return _buildPaginationFooter();
-      return widget.getItemWidget(_listData[dataIndex] as T);
+      return widget.getItemWidget(_listData[dataIndex]);
     }
 
     final separator = widget.getSeparatorWidget();
@@ -212,7 +213,7 @@ class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
       setState(() {
         _listData
           ..clear()
-          ..addAll(results as List<T?>);
+          ..addAll(results);
         _pageNumber = results.isEmpty ? 1 : 2;
         _hasMore = results.isNotEmpty;
         _hasError = false;
@@ -222,9 +223,11 @@ class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
     } catch (error) {
       widget.onError?.call(error);
       setState(() {
-        _encounteredError = error;
-        _hasError = true;
         _isLoading = false;
+        if (_listData.isEmpty) {
+          _encounteredError = error;
+          _hasError = true;
+        }
       });
     }
   }
@@ -238,7 +241,7 @@ class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
   /// Fetches the next page of data and appends it to [_listData].
   /// No-op if there are no more pages or a fetch is already in progress.
   Future<void> _fetchData() async {
-    if (!_hasMore || _isLoading) return;
+    if (!_hasMore || _isLoading || _hasError) return;
     setState(() => _isLoading = true);
     try {
       final results = await widget.getListData(_pageNumber);
@@ -249,7 +252,7 @@ class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
           widget.onAllItemsLoaded?.call();
         } else {
           _pageNumber = _pageNumber! + 1;
-          _listData.addAll(results as List<T?>);
+          _listData.addAll(results);
         }
       });
     } catch (error) {

@@ -92,7 +92,7 @@ UserList(
 final _controller = ScrollController();
 
 UserList(
-    scrollController: 
+    scrollController: _controller
 )
     
 // elsewhere:
