@@ -17,13 +17,13 @@ abstract class InfiniteListView<T> extends StatefulWidget {
   Future<List<T>> getListData(int? pageNumber);
 
   /// Returns the widget to display while the initial data is being loaded.
-  Widget getLoadingWidget() => Center(child: CircularProgressIndicator());
+  Widget getLoadingWidget() => const Center(child: CircularProgressIndicator());
 
   /// Returns the widget to display while additional data is being loaded for pagination.
   Widget getPaginationLoadingWidget() {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.all(12),
         child: CircularProgressIndicator(),
       ),
     );
@@ -31,9 +31,9 @@ abstract class InfiniteListView<T> extends StatefulWidget {
 
   /// Returns the widget to display in case of an error while loading initial data.
   Widget getErrorWidget(dynamic error) {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.all(24),
         child: Text(
           "Something went wrong! Tap to try again.",
           style: TextStyle(fontSize: 16),
@@ -44,9 +44,9 @@ abstract class InfiniteListView<T> extends StatefulWidget {
 
   /// Returns the widget to display in case of an error while loading additional data for pagination.
   Widget getPaginationErrorWidget(dynamic error) {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         child: Text("Something went wrong! Tap to try again."),
       ),
     );
@@ -86,25 +86,26 @@ class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
       }
     } else {
       return ListView.builder(
-          itemCount: _listData.length + 1,
-          itemBuilder: (context, index) {
-            if (index == _listData.length - _nextPageThreshold) {
-              fetchPhotos();
+        itemCount: _listData.length + 1,
+        itemBuilder: (context, index) {
+          if (index == _listData.length - _nextPageThreshold) {
+            fetchPhotos();
+          }
+          if (index == _listData.length) {
+            if (!_hasMore) {
+              return const SizedBox.shrink();
+            } else if (_error) {
+              return InkWell(
+                onTap: () => retry(),
+                child: widget.getPaginationErrorWidget(_encounteredError),
+              );
+            } else {
+              return widget.getPaginationLoadingWidget();
             }
-            if (index == _listData.length) {
-              if (!_hasMore) {
-                return SizedBox.shrink();
-              } else if (_error) {
-                return InkWell(
-                  onTap: () => retry(),
-                  child: widget.getPaginationErrorWidget(_encounteredError),
-                );
-              } else {
-                return widget.getPaginationLoadingWidget();
-              }
-            }
-            return widget.getItemWidget(_listData[index] as T);
-          });
+          }
+          return widget.getItemWidget(_listData[index] as T);
+        },
+      );
     }
     return Container();
   }
@@ -119,7 +120,7 @@ class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
 
   Future<void> fetchPhotos() async {
     if (!_hasMore) return;
-    widget.getListData(_pageNumber).then((value) {
+    await widget.getListData(_pageNumber).then((value) {
       setState(() {
         _loading = false;
         if (value.isEmpty) {
