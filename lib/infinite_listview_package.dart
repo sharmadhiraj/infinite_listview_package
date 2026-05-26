@@ -1,25 +1,31 @@
-/// A Flutter library for implementing infinite scroll listview widgets.
+/// A Flutter library for implementing infinite scroll ListView widgets.
 library infinite_listview_package;
 
 import 'package:flutter/material.dart';
 
-/// An abstract class for creating infinite scroll listview widgets.
+/// Abstract base class for building paginated infinite scroll ListViews.
+///
+/// Extend this class and implement [getItemWidget] and [getListData].
+/// Override other methods to customise loading, error, and pagination UI.
+///
+/// Type parameter [T] represents the data model for each list item.
 abstract class InfiniteListView<T> extends StatefulWidget {
   const InfiniteListView({Key? key}) : super(key: key);
 
   @override
   State<InfiniteListView<T>> createState() => _InfiniteListViewState<T>();
 
-  /// Returns a widget representing a single item in the list.
+  /// Builds a single list item widget for the given [item].
   Widget getItemWidget(T item);
 
-  /// Retrieves a list of items for the specified page number.
+  /// Fetches a page of items for the given [pageNumber].
+  /// Return an empty list to signal end of data.
   Future<List<T>> getListData(int? pageNumber);
 
-  /// Returns the widget to display while the initial data is being loaded.
+  /// Widget shown during initial data load.
   Widget getLoadingWidget() => const Center(child: CircularProgressIndicator());
 
-  /// Returns the widget to display while additional data is being loaded for pagination.
+  /// Widget shown at the bottom of the list while fetching the next page.
   Widget getPaginationLoadingWidget() {
     return const Center(
       child: Padding(
@@ -29,7 +35,8 @@ abstract class InfiniteListView<T> extends StatefulWidget {
     );
   }
 
-  /// Returns the widget to display in case of an error while loading initial data.
+  /// Widget shown when the initial data load fails.
+  /// Wrap with [InkWell] is handled internally — tap triggers a retry.
   Widget getErrorWidget(dynamic error) {
     return const Center(
       child: Padding(
@@ -42,100 +49,117 @@ abstract class InfiniteListView<T> extends StatefulWidget {
     );
   }
 
-  /// Returns the widget to display in case of an error while loading additional data for pagination.
+  /// Widget shown at the bottom of the list when pagination fails.
+  /// Wrap with [InkWell] is handled internally — tap triggers a retry.
   Widget getPaginationErrorWidget(dynamic error) {
     return const Center(
       child: Padding(
         padding: EdgeInsets.all(16),
-        child: Text("Something went wrong! Tap to try again."),
+        child: Text('Something went wrong! Tap to try again.'),
       ),
     );
   }
 }
 
 class _InfiniteListViewState<T> extends State<InfiniteListView<T>> {
-  late bool _hasMore;
-  late bool _error;
-  late bool _loading;
-  int? _pageNumber;
-  late List<T?> _listData;
-  final int _nextPageThreshold = 5;
+  /// Number of items from the end at which the next page fetch is triggered.
+  static const int _nextPageThreshold = 5;
+
+  int? _pageNumber = 1;
+  final List<T?> _listData = [];
+  bool _hasMore = true;
+  bool _isLoading = true;
+  bool _hasError = false;
   dynamic _encounteredError;
 
   @override
   void initState() {
     super.initState();
-    _hasMore = true;
-    _error = false;
-    _loading = true;
-    _pageNumber = 1;
-    _listData = [];
-    fetchPhotos();
+    _fetchData();
   }
 
   @override
   Widget build(BuildContext context) {
     if (_listData.isEmpty) {
-      if (_loading) {
-        return widget.getLoadingWidget();
-      } else if (_error) {
-        return InkWell(
-          onTap: () => retry(),
-          child: widget.getErrorWidget(_encounteredError),
-        );
-      }
-    } else {
-      return ListView.builder(
-        itemCount: _listData.length + 1,
-        itemBuilder: (context, index) {
-          if (index == _listData.length - _nextPageThreshold) {
-            fetchPhotos();
-          }
-          if (index == _listData.length) {
-            if (!_hasMore) {
-              return const SizedBox.shrink();
-            } else if (_error) {
-              return InkWell(
-                onTap: () => retry(),
-                child: widget.getPaginationErrorWidget(_encounteredError),
-              );
-            } else {
-              return widget.getPaginationLoadingWidget();
-            }
-          }
-          return widget.getItemWidget(_listData[index] as T);
-        },
+      return _buildEmptyState();
+    }
+    return _buildList();
+  }
+
+  /// Handles the initial empty state — loading spinner or full-screen error.
+  Widget _buildEmptyState() {
+    if (_isLoading) return widget.getLoadingWidget();
+    if (_hasError) {
+      return InkWell(
+        onTap: _retry,
+        child: widget.getErrorWidget(_encounteredError),
       );
     }
-    return Container();
+    return const SizedBox.shrink();
   }
 
-  void retry() {
+  /// Builds the paginated list with inline pagination loading/error at the bottom.
+  Widget _buildList() {
+    return ListView.builder(
+      itemCount: _listData.length + 1,
+      itemBuilder: (context, index) {
+        if (index == _listData.length - _nextPageThreshold) {
+          _fetchData();
+        }
+
+        // Last slot — pagination indicator or end-of-list
+        if (index == _listData.length) {
+          return _buildPaginationFooter();
+        }
+
+        return widget.getItemWidget(_listData[index] as T);
+      },
+    );
+  }
+
+  /// Builds the footer widget shown after the last item.
+  Widget _buildPaginationFooter() {
+    if (!_hasMore) return const SizedBox.shrink();
+    if (_hasError) {
+      return InkWell(
+        onTap: _retry,
+        child: widget.getPaginationErrorWidget(_encounteredError),
+      );
+    }
+    return widget.getPaginationLoadingWidget();
+  }
+
+  /// Resets error state and retries the last failed fetch.
+  void _retry() {
     setState(() {
-      _loading = true;
-      _error = false;
-      fetchPhotos();
+      _isLoading = true;
+      _hasError = false;
     });
+    _fetchData();
   }
 
-  Future<void> fetchPhotos() async {
-    if (!_hasMore) return;
-    await widget.getListData(_pageNumber).then((value) {
+  /// Fetches the next page of data and appends it to [_listData].
+  /// No-op if there are no more pages or a fetch is already in progress.
+  Future<void> _fetchData() async {
+    if (!_hasMore || _isLoading) return;
+
+    try {
+      final results = await widget.getListData(_pageNumber);
       setState(() {
-        _loading = false;
-        if (value.isEmpty) {
+        _isLoading = false;
+        if (results.isEmpty) {
           _hasMore = false;
         } else {
           _pageNumber = _pageNumber! + 1;
-          _listData.addAll(value as List<T?>);
+          _listData.addAll(results as List<T?>);
         }
       });
-    }).catchError((error) {
+    } catch (error) {
       setState(() {
         _encounteredError = error;
-        _loading = false;
-        _error = true;
+        _isLoading = false;
+        _hasError = true;
       });
-    });
+    }
   }
 }
